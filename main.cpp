@@ -70,19 +70,14 @@ class Myers {
 
   std::deque<Edit> diff() {
     auto edits = std::deque<Edit>();
-    for (auto edit : backtrack()) {
-      std::cout << "DBG: " << edit[0] << ", " << edit[1] << ", " << edit[2] << ", " << edit[3] << std::endl;
-      auto prev_x = edit[0];
-      auto prev_y = edit[1];
-      auto x = edit[2];
-      auto y = edit[3];
+    for (const auto& e : backtrack()) {
+      //std::cout << "DBG: (" << e.prev_x << ", " << e.prev_y << ") -> (" << e.x << ", " << e.y << ")" << std::endl;
+      auto& a_line = a[e.x - 1];
+      auto& b_line = b[e.y - 1];
 
-      auto& a_line = a[x - 1];
-      auto& b_line = b[y - 1];
-
-      if (prev_x == x)
+      if (e.prev_x == e.x)
         edits.emplace_front(Edit::etype::ins, nullptr, &b_line);
-      else if (prev_y == y)
+      else if (e.prev_y == e.y)
         edits.emplace_front(Edit::etype::del, &a_line, nullptr);
       else
         edits.emplace_front(Edit::etype::eql, &a_line, &b_line);
@@ -91,6 +86,13 @@ class Myers {
   }
   
   private:
+
+  struct TraceTuple {
+    std::size_t prev_x = 0;
+    std::size_t prev_y = 0;
+    std::size_t x = 0;
+    std::size_t y = 0;
+  };
   
   string_lines& a, b;
   std::size_t max;
@@ -121,6 +123,7 @@ class Myers {
         v[idx(k)] = x;
 
         if ((x >= n) && (y >= m)) {
+          trace.push_back(v);
           return trace;
         }
       }
@@ -128,31 +131,41 @@ class Myers {
     return trace;
   }
 
-  std::vector<std::array<std::size_t, 4>> backtrack() {
+  std::vector<TraceTuple> backtrack() {
     auto x = a.size();
     auto y = b.size();
 
     auto trace = shortest_edit();
-    std::size_t d = trace.size() - 1;
-    auto edits = std::vector<std::array<std::size_t, 4>>();
+    std::cout << "DBG: " << "done shortest_edit" << std::endl;
+    std::size_t d = trace.size();
+
+    auto edits = std::vector<TraceTuple>();
     for (auto v_it = trace.rbegin(); v_it != trace.rend(); v_it++, d--) {
+      
       auto v = *v_it;
       int k = x - y;
+      std::cout << "DBG: d=" << d << " x=" << x << " y=" << y << " k=" << k << std::endl;
       int prev_k;
-      if ((k == -d) || (k != d && (v[idx(k - 1)] < v[idx(k + 1)]))) {
+      if ((k == -d) || ((k != d) && (v[idx(k - 1)] < v[idx(k + 1)]))) {
+          std::cout << "DBG: v[k-1],v[k+1]: " <<v[idx(k - 1)] << ", " << v[idx(k + 1)] << std::endl;
           prev_k = k + 1;
       } else {
+          std::cout << "DBG: v[k-1],v[k+1]: " <<v[idx(k - 1)] << ", " << v[idx(k + 1)] << std::endl;
           prev_k = k - 1;
       }
-      std::size_t prev_x = v[prev_k];
+      std::size_t prev_x = v[idx(prev_k)];
       std::size_t prev_y = prev_x - prev_k;
+      std::cout << "DBG: " << "prev_k=" << prev_k 
+        << " prev_x=" << prev_x
+        << " prev_y=" << prev_y
+        << std::endl;
 
       while ((x > prev_x) && (y > prev_y)) {
-        edits.emplace_back(std::array<std::size_t, 4>{x - 1, y - 1, x, y});
+        edits.emplace_back(TraceTuple{x - 1, y - 1, x, y});
         x--; y--;
       }
       if (d > 0) {
-        edits.emplace_back(std::array<std::size_t, 4>{prev_x, prev_y, x, y});
+        edits.emplace_back(TraceTuple{prev_x, prev_y, x, y});
       }
       x = prev_x;
       y = prev_y;
@@ -175,7 +188,7 @@ std::ostream& operator<<(std::ostream& out, Myers::Edit& edit) {
 
   return out;
 }
-
+/*
 int main(int argc, char** argv) {
     auto s1 = R"code(A
 B
@@ -204,59 +217,46 @@ C)code";
     }
     return 0;
 }
-/*
+*/
+
 int main(int argc, char** argv) {
     auto s1 = R"code(#include <stdio.h>
 
-// Frobs foo heartily
-int frobnitz(int foo)
-{
-    int i;
-    for(i = 0; i < 10; i++)
-    {
-        printf("Your answer is: ");
-        printf("%d\n", foo);
-    }
+int foo(int a) {
+  return 2 *a ;
 }
 
-int fact(int n)
-{
-    if(n > 1)
-    {
-        return fact(n-1) * n;
-    }
-    return 1;
+int bar(int x) {
+  return x - 3;
 }
 
 int main(int argc, char **argv)
 {
-    frobnitz(fact(10));
+    foo(bar(4));
+    return 0;
 })code";
 
-    auto s2 = R"code(#include <stdio.h>
+    auto s2 = R"code(#include <stdlib.h>
+#include <stdio.h>
 
-int fib(int n)
-{
-    if(n > 2)
-    {
-        return fib(n-1) + fib(n-2);
-    }
-    return 1;
+int foo(int a) {
+  return 2 *a ;
 }
 
-// Frobs foo heartily
-int frobnitz(int foo)
-{
-    int i;
-    for(i = 0; i < 10; i++)
-    {
-        printf("%d\n", foo);
-    }
+int bar(int x) {
+  return x - 3;
+}
+
+float baz(float r) {
+  return r*r;
 }
 
 int main(int argc, char **argv)
 {
-    frobnitz(fib(10));
+    foo(bar(4));
+    baz(2.0);
+    return 0;
+
 })code";
 
     auto l1 = split_lines(s1);
@@ -265,7 +265,13 @@ int main(int argc, char **argv)
     auto l2 = split_lines(s2);
     print_txt(l2);
     std::cout << "=========" << std::endl;
+    Myers myers = Myers(l1, l2);
+    std::cout << "=========" << std::endl;
+
+    for (auto& edit : myers.diff()) {
+      std::cout << edit << std::endl;
+    }
    
     return 0;
 }
-*/
+
