@@ -70,17 +70,36 @@ class Myers {
 
   std::deque<Edit> diff() {
     auto edits = std::deque<Edit>();
-    for (const auto& e : backtrack()) {
-      //std::cout << "DBG: (" << e.prev_x << ", " << e.prev_y << ") -> (" << e.x << ", " << e.y << ")" << std::endl;
-      auto& a_line = a[e.x - 1];
-      auto& b_line = b[e.y - 1];
+    auto x = a.size();
+    auto y = b.size();
 
-      if (e.prev_x == e.x)
-        edits.emplace_front(Edit::etype::ins, nullptr, &b_line);
-      else if (e.prev_y == e.y)
-        edits.emplace_front(Edit::etype::del, &a_line, nullptr);
-      else
-        edits.emplace_front(Edit::etype::eql, &a_line, &b_line);
+    auto trace = shortest_edit();
+    std::size_t d = trace.size();
+
+    for (auto v_it = trace.rbegin(); v_it != trace.rend(); v_it++, d--) {
+      
+      auto v = *v_it;
+      int k = x - y;
+      int prev_k;
+      if ((k == -d) || ((k != d) && (v[idx(k - 1)] < v[idx(k + 1)]))) {
+          prev_k = k + 1;
+      } else {
+          prev_k = k - 1;
+      }
+      std::size_t prev_x = v[idx(prev_k)];
+      std::size_t prev_y = prev_x - prev_k;
+
+      while ((x > prev_x) && (y > prev_y)) {
+        edits.emplace_front(Edit::etype::eql, &a[x - 1], &b[y - 1]);
+        x--; y--;
+      }
+      if (x == prev_x) {
+        edits.emplace_front(Edit::etype::ins, nullptr, &b[y - 1]);
+      } else if (y == prev_y) {
+        edits.emplace_front(Edit::etype::del, &a[x - 1], nullptr);
+      }
+      x = prev_x;
+      y = prev_y;
     }
     return edits;
   }
@@ -131,47 +150,6 @@ class Myers {
     return trace;
   }
 
-  std::vector<TraceTuple> backtrack() {
-    auto x = a.size();
-    auto y = b.size();
-
-    auto trace = shortest_edit();
-    std::cout << "DBG: " << "done shortest_edit" << std::endl;
-    std::size_t d = trace.size();
-
-    auto edits = std::vector<TraceTuple>();
-    for (auto v_it = trace.rbegin(); v_it != trace.rend(); v_it++, d--) {
-      
-      auto v = *v_it;
-      int k = x - y;
-      std::cout << "DBG: d=" << d << " x=" << x << " y=" << y << " k=" << k << std::endl;
-      int prev_k;
-      if ((k == -d) || ((k != d) && (v[idx(k - 1)] < v[idx(k + 1)]))) {
-          std::cout << "DBG: v[k-1],v[k+1]: " <<v[idx(k - 1)] << ", " << v[idx(k + 1)] << std::endl;
-          prev_k = k + 1;
-      } else {
-          std::cout << "DBG: v[k-1],v[k+1]: " <<v[idx(k - 1)] << ", " << v[idx(k + 1)] << std::endl;
-          prev_k = k - 1;
-      }
-      std::size_t prev_x = v[idx(prev_k)];
-      std::size_t prev_y = prev_x - prev_k;
-      std::cout << "DBG: " << "prev_k=" << prev_k 
-        << " prev_x=" << prev_x
-        << " prev_y=" << prev_y
-        << std::endl;
-
-      while ((x > prev_x) && (y > prev_y)) {
-        edits.emplace_back(TraceTuple{x - 1, y - 1, x, y});
-        x--; y--;
-      }
-      if (d > 0) {
-        edits.emplace_back(TraceTuple{prev_x, prev_y, x, y});
-      }
-      x = prev_x;
-      y = prev_y;
-    }
-    return edits;
-  }
 
 
 };
@@ -236,8 +214,7 @@ int main(int argc, char **argv)
     return 0;
 })code";
 
-    auto s2 = R"code(#include <stdlib.h>
-#include <stdio.h>
+    auto s2 = R"code(#include <stdio.h>
 
 int foo(int a) {
   return 2 *a ;
@@ -266,9 +243,51 @@ int main(int argc, char **argv)
     print_txt(l2);
     std::cout << "=========" << std::endl;
     Myers myers = Myers(l1, l2);
-    std::cout << "=========" << std::endl;
 
     for (auto& edit : myers.diff()) {
+      std::cout << edit << std::endl;
+    }
+    
+    std::cout << "=========" << std::endl;
+    
+    auto s3 = R"code(void Chunk_copy(Chunk *src, size_t src_start, Chunk *dst, size_t dst_start, size_t n)
+{
+    if (!Chunk_bounds_check(src, src_start, n)) return;
+    if (!Chunk_bounds_check(dst, dst_start, n)) return;
+
+    memcpy(dst->data + dst_start, src->data + src_start, n);
+}
+
+int Chunk_bounds_check(Chunk *chunk, size_t start, size_t n)
+{
+    if (chunk == NULL) return 0;
+
+    return start <= chunk->length && n <= chunk->length - start;
+})code";
+
+    auto s4 = R"code(int Chunk_bounds_check(Chunk *chunk, size_t start, size_t n)
+{
+    if (chunk == NULL) return 0;
+
+    return start <= chunk->length && n <= chunk->length - start;
+}
+
+void Chunk_copy(Chunk *src, size_t src_start, Chunk *dst, size_t dst_start, size_t n)
+{
+    if (!Chunk_bounds_check(src, src_start, n)) return;
+    if (!Chunk_bounds_check(dst, dst_start, n)) return;
+
+    memcpy(dst->data + dst_start, src->data + src_start, n);
+})code";
+    auto l3 = split_lines(s3);
+    print_txt(l3);
+    std::cout << "=========" << std::endl;
+    auto l4 = split_lines(s4);
+    print_txt(l4);
+    std::cout << "=========" << std::endl;
+    Myers myers2 = Myers(l3, l4);
+
+    for (auto& edit : myers2.diff()) {
       std::cout << edit << std::endl;
     }
    
