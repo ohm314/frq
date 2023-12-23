@@ -17,6 +17,7 @@
 
 #include <deque>
 #include <iostream>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -146,6 +147,7 @@ class Patience {
   struct Slice {
     std::pair<std::size_t, std::size_t> a; // left text slice, low and high line numbers
     std::pair<std::size_t, std::size_t> b; // right text slice, low and high line numbers
+
   };
 
 public:
@@ -155,5 +157,33 @@ public:
 private:
   string_lines& a;
   string_lines& b;
+  
+  void nique_matching_lines(Slice slice) {
+    std::map<std::string, std::array<std::size_t, 4>> counts;
+    for (auto i = slice.a.first; i < slice.a.second; ++i) {
+      auto& txt = a[i-1].second;
+      if (counts.count(txt) == 0) {
+        counts[txt] = {1, 0, i, 0};
+      } else {
+        counts[txt][0]++;
+      }
+    }
+    for (auto i = slice.b.first; i < slice.b.second; ++i) {
+      auto& txt = b[i-1].second;
+      if (counts.count(txt) == 0) {
+        counts[txt] = {0, 1, 0, i};
+      } else {
+        counts[txt][0]++;
+      }
+    }
+    // now select only the entries with (1, 1) counts
+    for (auto it = counts.cbegin(); it != counts.cend(); ) {
+      auto& el = (*it).second;
+      if ((el[0] != 1) || (el[1] != 1)) {
+        counts.erase(it);
+      }
+      it++;
+    }
 
+  }
 };
